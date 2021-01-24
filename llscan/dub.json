@@ -1,0 +1,12 @@
+{
+	"authors": [
+		"Vladimir Shabunin"
+	],
+	"copyright": "Copyright © 2020, Vladimir Shabunin",
+	"dependencies": {
+		"llsdk": "~>0.0.1"
+	},
+	"description": "Scan KNX line",
+	"license": "MIT",
+	"name": "llscan"
+}

@@ -1,0 +1,14 @@
+{
+	"authors": [
+		"Vladimir Shabunin"
+	],
+	"targetType": "library",
+	"copyright": "Copyright © 2020, Vladimir Shabunin",
+	"dependencies": {
+		"tinyredis": "~>2.2.1"
+	},
+	"description": "Client and shared symbols for dobaosll tools.",
+	"license": "MIT",
+	"name": "llsdk",
+	"version": "0.0.1"
+}

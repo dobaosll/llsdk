@@ -1,0 +1,13 @@
+{
+	"authors": [
+		"Vladimir Shabunin"
+	],
+	"copyright": "Copyright © 2020, Vladimir Shabunin",
+	"dependencies": {
+		"llsdk": "~>0.0.1",
+		"tinyredis": "~>2.2.1"
+	},
+	"description": "KNXNetIP gateway implementation",
+	"license": "MIT",
+	"name": "llnet"
+}
