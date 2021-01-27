@@ -6,6 +6,7 @@ import std.file;
 import std.json;
 import std.datetime.stopwatch;
 import std.getopt;
+import std.parallelism;
 import std.stdio;
 import std.string;
 
@@ -19,6 +20,7 @@ void main(string[] args) {
   ubyte start = 1;
   ubyte end = 255;
   string fname = "";
+  int thread_num = 1;
 
   GetoptResult getoptResult;
   try {
@@ -46,6 +48,10 @@ void main(string[] args) {
         "end|e", 
         "Stop at given device. Default: 255",
         &end,
+
+        "threads|t", 
+        "Number of threads for parallel operation. Default: 1",
+        &thread_num,
 
         "output|o",
         "Filename to save output in JSON format.",
@@ -99,14 +105,18 @@ void main(string[] args) {
   foreach(ubyte sub; lines) {
     string lineStr = subnetwork2str(sub);
     writeln("Scanning line ", lineStr);
+    ushort[] ia2scan;
     for (int i = start; i <= end; i += 1) {
-      ubyte ia = i & 0xff;
+      ubyte a = i & 0xff;
+      ushort addr = sub*256 + a;
+      ia2scan ~= addr;
+    }
+    //for (int i = start; i <= end; i += 1) {
+    auto workUnitSize = ia2scan.length/thread_num;
 
+    auto taskPool = new TaskPool(thread_num);
+    foreach(i, addr; taskPool.parallel(ia2scan, workUnitSize)) {
       JSONValue jo = parseJSON("{}");
-
-      Thread.sleep(50.msecs);
-
-      ushort addr = sub*256 + ia;
       writeln("Scanning address ", ia2str(addr));
       if (addr == local_ia) {
         jo["addr_ushort"] = local_ia;
@@ -133,7 +143,6 @@ void main(string[] args) {
       ubyte[] manufacturer;
       try {
         descr = tc.deviceDescriptorRead();
-        Thread.sleep(50.msecs);
       } catch(Exception e) {
         writefln("..Error reading device %s descriptor: %s",
             ia2str(addr), e.message);

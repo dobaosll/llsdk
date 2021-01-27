@@ -7,4 +7,5 @@ public import
     llsdk.tconn,
     llsdk.util,
     llsdk.properties,
-    llsdk.errors;
+    llsdk.errors,
+    llsdk.durations;

@@ -6,10 +6,14 @@ import std.bitmanip;
 import std.conv;
 import std.datetime.stopwatch;
 import std.functional;
+import std.stdio;
+import std.digest;
 
 import llsdk.cemi;
 import llsdk.client;
 import llsdk.errors;
+import llsdk.durations;
+import llsdk.util;
 
 public:
 
@@ -32,7 +36,6 @@ class TConn {
     bool con_received = false;
     bool con_timeout = false;
     while(!con_received && !con_timeout) {
-      Thread.sleep(500.usecs);
       dur = sw.peek();
       con_timeout = dur > timeout;
       ll.processMessages();
@@ -54,18 +57,18 @@ class TConn {
   private LData_cEMI waitForAck(LData_cEMI req, Duration timeout = 3000.msecs) {
     LData_cEMI res;
     // wait for confirmation
-    bool ack_received = false;
     StopWatch sw;
-    Duration dur;
     sw.reset();
     sw.start();
+    bool ack_received = false;
     bool ack_timeout = false;
     while(!ack_received && !ack_timeout) {
-      Thread.sleep(500.usecs);
-      dur = sw.peek();
-      ack_timeout = dur > timeout;
+      ack_timeout = sw.peek > timeout;
       ll.processMessages();
-      if (in_frame is null) continue;
+      Thread.sleep(DUR_SLEEP_REQUEST);
+      if (in_frame is null) 
+        continue;
+
       if (in_frame.message_code == MC.LDATA_IND &&
           in_frame.tservice == TService.TAck &&
           in_frame.source == req.dest &&
@@ -91,7 +94,7 @@ class TConn {
     sw.start();
     bool res_timeout = false;
     while(!res_received && !res_timeout) {
-      Thread.sleep(500.usecs);
+      Thread.sleep(DUR_SLEEP_REQUEST);
       dur = sw.peek();
       res_timeout = dur > timeout;
       ll.processMessages();
@@ -144,14 +147,16 @@ class TConn {
     tack.tservice = TService.TAck;
     tack.tseq = in_seq;
     increaseInSeq();
-    ll.sendCemi(tack.toUbytes);
+    ll.sendCemi(tack.toUbytes, 10);
   }
   this(ushort ia, 
       string redis_host = "127.0.0.1", 
       ushort redis_port = 6379,
-      string prefix = "dobaosll") {
+      string prefix = "dobaosll",
+      string name = "tconnection") {
     address = ia;
-    ll = new LLClient(redis_host, redis_port, prefix);
+    if (name == "tconnection") name ~= ia2str(ia);
+    ll = new LLClient(redis_host, redis_port, prefix, name);
     ll.onCemi(toDelegate(&onCemiFrame));
   }
 
@@ -162,7 +167,7 @@ class TConn {
     tconn.source = 0x0000;
     tconn.dest = address;
     tconn.tservice = TService.TConnect;
-    ll.sendCemi(tconn.toUbytes);
+    ll.sendCemi(tconn.toUbytes, 10);
     bool confirmed = false;
     LData_cEMI con;
     while (!confirmed) {
@@ -170,7 +175,7 @@ class TConn {
         con = waitForCon(tconn);
         confirmed = true;
       } catch(Exception e) {
-        ll.sendCemi(tconn.toUbytes);
+        ll.sendCemi(tconn.toUbytes, 10);
       }
     }
     if (con.error) {
@@ -188,21 +193,21 @@ class TConn {
     tdcon.source = 0x0000;
     tdcon.dest = address;
     tdcon.tservice = TService.TDisconnect;
-    ll.sendCemi(tdcon.toUbytes);
+    ll.sendCemi(tdcon.toUbytes, 10);
     connected = false;
   }
   private void request(LData_cEMI req) {
     if (!connected) {
       throw new Exception(ERR_DISCONNECTED);
     }
-    ll.sendCemi(req.toUbytes);
+    ll.sendCemi(req.toUbytes, 10);
     bool confirmed = false;
     while(!confirmed) {
       try {
         waitForCon(req);
         confirmed = true;
       } catch(Exception e) {
-        ll.sendCemi(req.toUbytes);
+        ll.sendCemi(req.toUbytes, 10);
       }
     }
     // while ack not received or sent count < 4
@@ -215,7 +220,7 @@ class TConn {
         acknowledged = true;
         increaseOutSeq();
       } catch(Exception e) {
-        ll.sendCemi(req.toUbytes);
+        ll.sendCemi(req.toUbytes, 10);
         //ack_timeout_dur = 1000.msecs;
         sent_cnt += 1;
       }
@@ -280,7 +285,6 @@ class TConn {
     ushort numstart = start & 0b000011111111;
     numstart = to!ushort((num << 12) | numstart);
     dprop.data.write!ushort(numstart, 2);
-    ll.sendCemi(dprop.toUbytes);
     result = requestResponse(dprop, APCI.APropertyValueResponse).data;
 
     if(result.length >= 4) {
@@ -322,7 +326,6 @@ class TConn {
     ushort numstart = start & 0b000011111111;
     numstart = to!ushort((num << 12) | numstart);
     dprop.data.write!ushort(numstart, 2);
-    ll.sendCemi(dprop.toUbytes);
     result = requestResponse(dprop, APCI.APropertyValueResponse).data;
 
     if(result.length >= 4) {
@@ -359,8 +362,6 @@ class TConn {
     dmem.tiny_data = number & 0b00111111;
     dmem.data.length = 2;
     dmem.data.write!ushort(addr, 0);
-    ll.sendCemi(dmem.toUbytes);
-
     LData_cEMI rmem = requestResponse(dmem, APCI.AMemoryResponse);
     
     if (rmem.tiny_data == number) {
@@ -386,7 +387,6 @@ class TConn {
     dmem.data.length = 2;
     dmem.data.write!ushort(addr, 0);
     dmem.data ~= data;
-    ll.sendCemi(dmem.toUbytes);
 
     return request(dmem);
   }
@@ -401,7 +401,6 @@ class TConn {
     dmsg.apci = APCI.AUserMessageReq;
     dmsg.apci_data_len = to!ubyte(1 + data.length);
     dmsg.data = data.dup;
-    ll.sendCemi(dmsg.toUbytes);
 
     return request(dmsg);
   }

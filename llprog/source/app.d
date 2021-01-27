@@ -9,7 +9,6 @@ import std.string;
 import llsdk;
 
 void main(string[] args) {
-
   string prefix = "dobaosll";
   string host = "127.0.0.1";
   ushort port = 6379;

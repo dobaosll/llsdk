@@ -50,14 +50,20 @@ class RedisDsm {
     writeln("Subscribing to ", cli_channel);
     sub.subscribe(cli_channel, toDelegate(&handleMessage));
   }
-  public void bus2pub(ubyte[] cemi) {
-    string req;
-    auto tr = pub.send("TIME");
-    foreach(v; tr) {
-      req ~= v.toString ~ "-";
-    }
-    string cemiB64 = Base64.encode(cemi);
-    req ~= cemiB64;
+  public void bus2pub(string req_id, int success, ubyte[] cemi) {
+    string req = req_id;
+    req ~= "-";
+    req ~= to!string(success);
+    req ~= "-";
+    req ~= Base64.encode(cemi);
+    pub.send("PUBLISH", bus_channel, req);
+  }
+  public void bus2pub(string req_id, int success, string msg) {
+    string req = req_id;
+    req ~= "-";
+    req ~= to!string(success);
+    req ~= "-";
+    req ~= msg;
     pub.send("PUBLISH", bus_channel, req);
   }
   public void processMessages() {
@@ -88,41 +94,5 @@ class RedisDsm {
     command ~= "* "; // id
     command ~= "payload " ~ data ~ " ";
     redis.send(command);
-  }
-  public long getRelativeTime(SysTime now, long ms) {
-    SysTime zero = now;
-    zero.hour(0);
-    zero.minute(0);
-    zero.second(0);
-    long diffSecs = now.toUnixTime - zero.toUnixTime;
-    long diffMsecs = diffSecs*1000 + ms;
-    return diffMsecs;
-  }
-  public long getRelativeTime() {
-    // return difference between current time
-    // and time of same day at midnight(00:00:00)
-    // in milliseconds
-    auto tr = redis.send("TIME");
-    long ts;
-    long ms;
-    foreach(k,v;tr) {
-      if (k == 0) {
-        ts = v.toInt!long();
-      } else if (k == 1) {
-        // microsecs to millisecs
-        ms = v.toInt!long()/1000; 
-      }
-    }
-    SysTime now = SysTime(unixTimeToStdTime(ts));
-    return getRelativeTime(now, ms);
-  }
-  public long getRelativeTime(string tsStr, string microsecsStr) {
-    // return difference between current time
-    // and time of same day at midnight(00:00:00)
-    // in milliseconds
-    long ts = parse!long(tsStr);
-    long ms = parse!long(microsecsStr)/1000;
-    SysTime now = SysTime(unixTimeToStdTime(ts));
-    return getRelativeTime(now, ms);
   }
 }

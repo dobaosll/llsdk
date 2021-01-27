@@ -1,14 +1,14 @@
 {
-  "authors": [
-    "bobalus"
-  ],
-  "copyright": "Copyright © 2020, bobalus",
-  "dependencies": {
-    "serialport": "~>2.2.2",
-    "tinyredis": "~>2.2.1",
-    "llsdk": "~>0.0.1"
-  },
-  "description": "baos link layer with redis",
-  "license": "MIT",
-  "name": "llpub"
+	"authors": [
+		"bobalus"
+	],
+	"copyright": "Copyright © 2020, bobalus",
+	"dependencies": {
+		"llsdk": "~>0.0.1",
+		"serialport": "~>2.2.3",
+		"tinyredis": "~>2.2.1"
+	},
+	"description": "baos link layer with redis",
+	"license": "MIT",
+	"name": "llpub"
 }

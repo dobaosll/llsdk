@@ -112,7 +112,7 @@ void main(string[] args) {
 	auto maxConnCntCfg = redisAbs.getKey(prefix ~ ":config:net:conn_count", "10", true);
 	auto maxConnCnt = to!int(maxConnCntCfg);
 
-	LLClient dobaosll = new LLClient("127.0.0.1", 6379, prefix);
+	LLClient dobaosll = new LLClient("127.0.0.1", 6379, prefix, "knxnet");
 
 	//  ========================================= \\
 	// ============================================ \\

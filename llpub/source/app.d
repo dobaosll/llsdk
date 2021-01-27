@@ -9,6 +9,7 @@ import std.functional;
 import std.getopt;
 import std.stdio;
 import std.string;
+import std.datetime.stopwatch;
 
 import baos_ll;
 import redis_dsm;
@@ -16,6 +17,7 @@ import errors;
 
 import llsdk.util;
 import llsdk.cemi;
+import llsdk.durations;
 
 void main(string[] args) {
   writeln("hello, friend");
@@ -82,6 +84,10 @@ void main(string[] args) {
     writeln("Redis stream feature enabled");
   }
 
+  string last_req_id;
+  ubyte[] last_cemi;
+  ubyte[] last_received;
+  bool confirmed = false;
   void pub2bus(string payload) {
     ubyte[] cemi;
     auto arr = payload.split("-");
@@ -89,34 +95,30 @@ void main(string[] args) {
       writeln("Wrong request");
       return;
     }
-    string ts = arr[0];
-    string ms = arr[1];
+    string req_id = arr[0];
+    int delay = parse!int(arr[1]);
     string cemiB64 = arr[2];
-    long requestTime = dsm.getRelativeTime(ts, ms);
-    long serverTime = dsm.getRelativeTime();
-    long diff = serverTime - requestTime;
-    diff = diff < 0? -diff: diff;
-    if (diff > timeout) {
-      writeln("Request timeout");
-      //throw new Exception("bye");
-      return;
-    }
     try {
       cemi = Base64.decode(cemiB64);
     } catch(Exception e) {
       writeln("Payload is not base64-encoded");
       return;
     }
+
+    Thread.sleep(delay.msecs);
     baos.sendFT12Frame(cemi);
+    last_req_id = req_id;
+    last_cemi = cemi.dup;
+
     // add to redis stream
     if (stream_enabled) {
       dsm.addToStream(stream_name, stream_maxlen, cemi.toHexString);
     }
     // process cemi
-    writeln("====================================================");
-    writeln("cemi frame >> BAOS: ", cemi.toHexString);
-    ubyte mc = cemi.peek!ubyte(0);
-    if (mc == MC.LDATA_REQ || mc == MC.LDATA_CON || mc == MC.LDATA_IND) {
+    writeln(req_id ~ ": ", cemi.toHexString);
+    MC mc = cast(MC) cemi.peek!ubyte(0);
+    
+    /*if (mc == MC.LDATA_REQ || mc == MC.LDATA_CON || mc == MC.LDATA_IND) {
       LData_cEMI decoded = new LData_cEMI(cemi);
       writeln("orig frame: 0x", cemi.toHexString);
       writeln("mc: ", decoded.message_code);
@@ -136,18 +138,40 @@ void main(string[] args) {
       writeln("tservice: ", decoded.tservice);
       writeln("tsequence: ", decoded.tseq);
       writeln("toUbytes: 0x", decoded.toUbytes.toHexString);
-      writeln("original and calculated equal? ", equal(cemi, decoded.toUbytes));
-      writeln("====================================================");
+    } */
+    confirmed = false;
+    bool timeout = false;
+    StopWatch sw = StopWatch(AutoStart.yes);
+    while(!timeout && !confirmed) {
+      Thread.sleep(DUR_SLEEP_REQUEST);
+      baos.processIncomingData();
+      timeout = sw.peek > 500.msecs;
+      if (timeout) {
+        sw.stop();
+        dsm.bus2pub(req_id, 0, "ERR_TIMEOUT");
+        last_received = [];
+      }
+      if (last_received.length > 0) {
+        mc = cast(MC) last_received.peek!ubyte(0);
+        if (mc == MC.LDATA_CON ||
+            mc == MC.MPROPREAD_CON ||
+            mc == MC.MPROPWRITE_CON) {
+          confirmed = true;
+          dsm.bus2pub(req_id, 1, last_received);
+          last_received = [];
+        } else {
+          dsm.bus2pub("0", 1, last_received);
+          last_received = [];
+        }
+      }
     }
   }
   dsm.subscribe(toDelegate(&pub2bus));
 
   baos = new BaosLL(device, params);
   void onCemiFrame(ubyte[] cemi) {
-    dsm.bus2pub(cemi);
-
-    writeln("====================================================");
-    writeln("BAOS >> cemi frame: 0x", cemi.toHexString);
+    last_received = cemi.dup;
+    writeln("                                                ", cemi.toHexString);
 
     // add to redis stream
     if (stream_enabled) {
@@ -155,7 +179,7 @@ void main(string[] args) {
     }
 
     auto mc = cemi.peek!ubyte(0);
-    if (mc == MC.LDATA_REQ || mc == MC.LDATA_CON || mc == MC.LDATA_IND) {
+    /*if (mc == MC.LDATA_REQ || mc == MC.LDATA_CON || mc == MC.LDATA_IND) {
       LData_cEMI decoded = new LData_cEMI(cemi);
       writeln("orig frame: 0x", cemi.toHexString);
       writeln("mc: ", decoded.message_code);
@@ -179,9 +203,7 @@ void main(string[] args) {
       writeln("tservice: ", decoded.tservice);
       writeln("tsequence: ", decoded.tseq);
       writeln("toUbytes: 0x", decoded.toUbytes.toHexString);
-      writeln("original and calculated equal? ", equal(cemi, decoded.toUbytes));
-      writeln("====================================================");
-    }
+    }*/
   }
   baos.onCemiFrame = toDelegate(&onCemiFrame);
 
@@ -195,6 +217,10 @@ void main(string[] args) {
   while(true) {
     dsm.processMessages();
     baos.processIncomingData();
-    Thread.sleep(1.msecs);
+    if (last_received.length > 0) {
+      dsm.bus2pub("0", 1, last_received);
+      last_received = [];
+    }
+    Thread.sleep(DUR_SLEEP_MAIN_LOOP);
   }
 }

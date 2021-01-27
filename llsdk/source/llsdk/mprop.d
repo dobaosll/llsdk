@@ -12,6 +12,7 @@ import std.digest: toHexString;
 import llsdk.cemi;
 import llsdk.client;
 import llsdk.errors;
+import llsdk.durations;
 
 /***
 
@@ -51,7 +52,7 @@ struct MPropFrame {
         mc != MC.MPROPREAD_CON &&
         mc != MC.MPROPWRITE_REQ &&
         mc != MC.MPROPWRITE_CON &&
-        mc != MC.MPROPINFO)IND) return;
+        mc != MC.MPROPINFO_IND) return;
     obj_type = msg.peek!ushort(offset); offset += 2;
     obj_inst = msg.peek!ubyte(offset); offset += 1;
     prop_id = msg.peek!ubyte(offset); offset += 1;
@@ -86,11 +87,12 @@ class MProp {
 
   this(string redis_host = "127.0.0.1", 
        ushort redis_port = 6379,
-       string prefix = "dobaosll", 
+       string prefix = "dobaosll",
+       string name = "mprop",
        Duration req_timeout = 3000.msecs) {
 
     this.req_timeout = req_timeout;
-    ll = new LLClient(redis_host, redis_port, prefix);
+    ll = new LLClient(redis_host, redis_port, prefix, name);
     ll.onCemi(toDelegate(&onCemiFrame));
   }
   private void onCemiFrame(ubyte[] cemi) {
@@ -126,7 +128,7 @@ class MProp {
     while (!resolved && !timeout) {
       timeout = sw.peek() > req_timeout;
       ll.processMessages();
-      Thread.sleep(1.msecs);
+      Thread.sleep(DUR_SLEEP_REQUEST);
     }
     if (timeout) {
       throw new Exception(ERR_MPROPREAD_TIMEOUT);
@@ -160,7 +162,7 @@ class MProp {
     while (!resolved && !timeout) {
       timeout = sw.peek() > req_timeout;
       ll.processMessages();
-      Thread.sleep(1.msecs);
+      Thread.sleep(DUR_SLEEP_REQUEST);
     }
     if (timeout) {
       throw new Exception(ERR_MPROPWRITE_TIMEOUT);
