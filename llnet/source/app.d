@@ -447,10 +447,12 @@ void main(string[] args) {
 							string destStr = decoded.address_type_group?
 								grp2str(decoded.dest): ia2str(decoded.dest);
 						}
-						// send cemi to BAOS module
-						dobaosll.sendCemi(cemiFrame);
+
 						// store last sent frame
 						connections[chIndex].lastCemiToBaos = cemiFrame.dup;
+
+						// send cemi to BAOS module
+						dobaosll.sendCemi(cemiFrame);
 
 						// increase sequence number of connection
 						connections[chIndex].increaseSeqId();
