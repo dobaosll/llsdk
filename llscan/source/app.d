@@ -115,6 +115,7 @@ void main(string[] args) {
     auto workUnitSize = ia2scan.length/thread_num;
 
     auto taskPool = new TaskPool(thread_num);
+    scope(exit) taskPool.stop();
     foreach(i, addr; taskPool.parallel(ia2scan, workUnitSize)) {
       JSONValue jo = parseJSON("{}");
       writeln("Scanning address ", ia2str(addr));
@@ -175,6 +176,7 @@ void main(string[] args) {
             toHexString(serial), toHexString(manufacturer));
       }
     }
+    taskPool.stop();
   }
 
   writeln("=================");
