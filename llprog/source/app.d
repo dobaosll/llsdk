@@ -14,7 +14,7 @@ void main(string[] args) {
   ushort port = 6379;
   string device = "";
   ushort mode = 0;
-  ubyte[] progmode;
+  ubyte progmode;
 
   GetoptResult getoptResult;
   try {
@@ -60,7 +60,7 @@ void main(string[] args) {
     writeln("Value should be 1 or 0");
     return;
   }
-  progmode ~= to!ubyte(mode);
+  progmode = to!ubyte(mode);
   if (device.length == 0) {
     writeln("Writing progmode for BAOS module: ", mode);
 
@@ -73,7 +73,7 @@ void main(string[] args) {
       return;
     }
     try {
-      mprop.write(54, progmode);
+      mprop.write(54, [progmode]);
     } catch (Exception e) {
       writeln("Error writing progmode property: ", e.message);
     }
@@ -93,24 +93,65 @@ void main(string[] args) {
       tc.connect();
       descr = tc.deviceDescriptorRead();
       writeln("Device descriptor: ", descr.toHexString);
-      if (descr.toHexString == "07B0") {
-        ubyte[] currentMode = tc.propertyRead(54, 0, 1, 1);
-        writeln("APropertyRead response: ", currentMode.toHexString);
-        ubyte[] newMode = tc.propertyWrite(54, progmode, 0, 1, 1);
-        writeln("APropertyWrite response: ", newMode.toHexString);
-      } else if (descr.toHexString == "0705") {
-        ubyte[] mem = tc.memoryRead(96, 1);
-        writeln("Old value: ", mem[$-1]);
-        tc.memoryWrite(96, progmode);
-        mem = tc.memoryRead(96, 1);
-        writeln("New value: ", mem[$-1]);
-      } else {
-        writeln("I don't know how to work with this device descriptor yet.");
+      switch(descr.toHexString) {
+        case "07B0":
+        case "091A":
+        case "17B1":
+        case "2705":
+        case "27B1":
+        case "2920":
+        case "57B0":
+          writeln("flavour_prop");
+          ubyte[] currentMode = tc.propertyRead(54, 0, 1, 1);
+          writeln("Old value: ", currentMode[0]);
+          ubyte[] newMode = tc.propertyWrite(54, [progmode], 0, 1, 1);
+          writeln("New value: ", newMode[0]);
+          break;
+        case "0010":
+        case "0011":
+        case "0012":
+        case "0013":
+        case "0020":
+        case "0021":
+        case "0025":
+        case "0700":
+        case "0701":
+        case "0705":
+        case "0900":
+        case "0910":
+        case "0911":
+        case "0912":
+        case "1011":
+        case "1012":
+        case "1013":
+        case "1900":
+        case "5705":
+          writeln("flavour_bcu1");
+          // flavour bcu1
+          ubyte[] mem = tc.memoryRead(0x60, 1);
+          ubyte oldmem = mem[$-1];
+          ubyte newmem;
+          ubyte oldmode = oldmem & 0b1;
+          ubyte parity = (oldmem & 0b10000000) >> 7;
+          writeln("Old value: ", oldmode);
+          if (progmode != oldmode) {
+            parity = parity == 0 ? 1: 0;
+          }
+          newmem = oldmem & 0b01111110; // clear parity and progmode bit
+          newmem = newmem | progmode; // write new mode
+          newmem = (newmem | (parity << 7)) & 0xff; // write parity bit
+          tc.memoryWrite(0x60, [newmem]);
+          mem = tc.memoryRead(96, 1);
+          writeln("New value: ", mem[$-1] & 0b1);
+          break;
+        default:
+          writeln("I don't know how to work with this device descriptor yet.");
+          break;
       }
     } catch (Exception e) {
       writeln("Error writing progmode property: ", e.message);
     } finally {
-      writeln("bye");
+      writeln("Disconnecting..");
       tc.disconnect();
     }
   }
