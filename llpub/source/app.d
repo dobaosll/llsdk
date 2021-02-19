@@ -159,6 +159,10 @@ void main(string[] args) {
           confirmed = true;
           dsm.bus2pub(req_id, 1, last_received);
           last_received = [];
+        } else if (mc == MC.MRESET_IND) {
+          confirmed = true;
+          dsm.bus2pub(req_id, 0, "ERR_RESET");
+          last_received = [];
         } else {
           dsm.bus2pub("0", 1, last_received);
           last_received = [];
