@@ -45,7 +45,7 @@ class TBroadcast {
 
     return res;
   }
-  private LData_cEMI[] collectResponse(APCI apci, Duration timeout = 1000.msecs) {
+  private LData_cEMI[] collectResponse(LData_cEMI req, APCI apci, Duration timeout = 1000.msecs) {
     LData_cEMI[] res;
     // wait for confirmation
     bool res_received = false;
@@ -61,7 +61,7 @@ class TBroadcast {
       ll.processMessages();
       if (in_frame is null) continue;
       if (in_frame.message_code == MC.LDATA_IND &&
-          in_frame.tservice == TService.TDataBroadcast &&
+          in_frame.tservice == req.tservice &&
           in_frame.apci == apci) {
         res ~= in_frame;
       }
@@ -100,7 +100,7 @@ class TBroadcast {
   public LData_cEMI[] iaRead() {
     LData_cEMI dmsg = new LData_cEMI();
     dmsg.message_code = MC.LDATA_REQ;
-    dmsg.address_type_group = false;
+    dmsg.address_type_group = true;
     dmsg.source = 0x0000;
     dmsg.dest = 0x0000;
     dmsg.tservice = TService.TDataBroadcast;
@@ -108,6 +108,6 @@ class TBroadcast {
     dmsg.apci_data_len = 1;
 
     request(dmsg);
-    return collectResponse(APCI.AIndividualAddressResponse);
+    return collectResponse(dmsg, APCI.AIndividualAddressResponse);
   }
 }

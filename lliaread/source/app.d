@@ -7,6 +7,7 @@ import std.getopt;
 import std.string;
 
 import llsdk.tbroadcast;
+import llsdk.util;
 
 void main(string[] args) {
   string prefix = "dobaosll";
@@ -49,8 +50,12 @@ void main(string[] args) {
   
   while(true) {
     try {
+      writeln("----");
+      writeln("Reading ind addrs");
       auto res = tb.iaRead();
-      writeln(res);
+      foreach(r; res) {
+	writeln("  - ", ia2str(r.source));
+      }
     } catch (Exception e) {
       writeln(e.message);
     }
