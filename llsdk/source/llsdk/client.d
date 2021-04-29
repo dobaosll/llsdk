@@ -107,6 +107,7 @@ class LLClient {
     bool timeout = false;
     StopWatch sw = StopWatch(AutoStart.yes);
     while (!confirmed && !timeout) {
+      timeout = sw.peek > con_timeout;
       if (timeout) {
         throw new Exception("ERR_REQUEST_TIMEOUT");
       }

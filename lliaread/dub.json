@@ -1,0 +1,12 @@
+{
+	"authors": [
+		"Vladimir Shabunin"
+	],
+	"copyright": "Copyright © 2020, Vladimir Shabunin",
+	"dependencies": {
+		"llsdk": "~>0.0.1"
+	},
+	"description": "Read devices in progmode",
+	"license": "MIT",
+	"name": "lliaread"
+}
